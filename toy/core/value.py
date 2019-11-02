@@ -1,8 +1,8 @@
 import operator as op
 
-from functools import reduce
-from sympy import Symbol
 import numpy as np
+from functools import reduce
+from sympy import Symbol, Expr
 from typing import Optional, Any, Tuple, Mapping, Dict, Set, Union
 
 from sidekick import import_later, Record
@@ -65,22 +65,49 @@ class Value(Record):
             return False
         return NotImplemented
 
+    def copy(self, **kwargs):
+        """
+        Create a copy, possibly overriding some attribute.
+        """
+        kwargs = {
+            'name': self.name,
+            'value': self.value,
+            'shape': self.shape,
+            'symbol': self.symbol,
+            'description': self.description,
+            'unit': self.unit,
+            'lower': self.lower,
+            'upper': self.upper,
+            **kwargs,
+        }
+        return Value(**kwargs)
+
     def replace(self, **kwargs) -> 'Value':
         """
         Return a new Value that replaces the dependent variables by the ascribed
         values.
         """
-        if self.is_numeric:
+        x = self.value
+
+        if is_numeric(x):
             return self
-        raise NotImplementedError
+        elif isinstance(x, Expr):
+            return self.copy(value=x.subs(kwargs))
+        else:
+            raise NotImplementedError(x)
 
     def dependent_variables(self) -> Set[str]:
         """
-        Set of all dependent variable names.
+        A set with all dependent variable names.
         """
-        if self.is_numeric:
+        x = self.value
+
+        if is_numeric(x):
             return set()
-        raise NotImplementedError
+        elif isinstance(x, Expr):
+            return {str(x) for x in x.atoms()}
+        elif callable(x):
+            raise NotImplementedError(x)
 
 
 def replace_values(substitutions: Mapping[str, Any], ns: Dict[str, Value]):
