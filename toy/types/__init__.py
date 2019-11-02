@@ -1,0 +1,1 @@
+from .namedarray import namedarray
