@@ -70,7 +70,7 @@ The ``Particle`` class is just an specification for a dynamic model. It does not
 state of simulation or any dynamic variables. The actual simulation is executed by calling
 the run() method with a range of times.
 
->>> #model = Particle()
+>>> model = Particle()
 >>> #run = model.run(0, 10, vx=10, vy=20)
 
 The "runner" object stores all intermediary steps of execution and some methods useful
@@ -127,7 +127,7 @@ variable names to their corresponding :cls:`Value` declarations:
 
 >>> m = ForcedOscillator()
 >>> m.vars
-{'x': Value(0, 'x'), 'v': Value(1, 'v')}
+{'x': Value('x', 0), 'v': Value('v', 1)}
 
 The :cls:`Value` objects store information such as name, bound symbol, units,
 description, etc.
@@ -137,7 +137,7 @@ that do not change during simulation, such as mass, the spring constant, etc. Al
 must be reduced to numbers when model is initialized. They don't change.
 
 >>> m.params   # doctest: +ELLIPSIS
-{'m': Value(1, 'm'), 'k': Value(1, 'k'), ...}
+{'m': Value('m', 1), 'k': Value('k', 1), ...}
 
 If you only need the initial values, use
 
@@ -166,7 +166,7 @@ dynamic variables. This is what the "force" term is in the oscillator model.
 We refer to those values as "computed terms",
 
 >>> m.computed_terms
-{'force': Value(F * sin(omega * t), 'force')}
+{'force': Value('force', F*sin(omega*t))}
 
 They are subject to similar restriction as parameters, in that it is not possible
 to change computed terms in the run() method, but we can do it during model
@@ -178,7 +178,7 @@ is only possible after model initialization.
 >>> m3.computed_terms
 {}
 >>> m3.params  # doctest: +ELLIPSIS
-{'m': 1, ..., 'force': 0.0}
+{'m': Value('m', 1), ..., 'force': Value('force', 0)}
 
 
 Composing models

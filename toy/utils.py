@@ -31,3 +31,28 @@ def as_dict(x):
         return x
     else:
         return dict(x)
+
+
+def substitute(expr, vars):
+    """
+    Substitute all variables into expression.
+
+    Args:
+        expr:
+            A sympy expresssion
+        vars:
+            A mapping from variable names to the corresponding substitution
+            values.
+    """
+    subs = {}
+    for atom in expr.atoms():
+        name = str(atom)
+        try:
+            subs[atom] = vars[name]
+        except KeyError:
+            pass
+
+    value = expr.subs(subs).evalf()
+    if isinstance(value, SymbNumber) and value == int(value):
+        return int(value)
+    return value

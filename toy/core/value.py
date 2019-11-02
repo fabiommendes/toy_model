@@ -6,6 +6,7 @@ from sympy import Symbol, Expr
 from typing import Optional, Any, Tuple, Mapping, Dict, Set, Union
 
 from sidekick import import_later, Record
+from toy.utils import substitute
 from ..unit import DIMENSIONLESS
 from ..utils import is_numeric
 
@@ -42,7 +43,7 @@ class Value(Record):
             vshape = getattr(value, 'shape', (1,))
             assert tuple(shape) == vshape
             kwargs['shape'] = vshape
-        symbol = kwargs.pop('symbol', Symbol(name))
+        symbol = kwargs.pop('symbol', Symbol(name, real=True))
         super().__init__(name, value, symbol, **kwargs)
 
     def __repr__(self):
@@ -89,12 +90,16 @@ class Value(Record):
         """
         x = self.value
 
-        if is_numeric(x):
-            return self
+        if self.name in kwargs:
+            value = kwargs[self.name]
+        elif is_numeric(x):
+            value = x
         elif isinstance(x, Expr):
-            return self.copy(value=x.subs(kwargs))
+            value = substitute(x, kwargs)
         else:
             raise NotImplementedError(x)
+
+        return self.copy(value=value)
 
     def dependent_variables(self) -> Set[str]:
         """

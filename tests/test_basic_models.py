@@ -1,3 +1,5 @@
+import pytest
+
 from toy import Model
 
 
@@ -57,3 +59,40 @@ class TestBasicParticleModel:
         E = K - U
         assert E.std() <= (K.mean() + abs(U).mean()) * 0.1
         assert X.std() != 0
+
+
+class TestParametricModel:
+    @pytest.fixture
+    def cls(self):
+        return self.get_cls()
+
+    def get_cls(self):
+        class Growth(Model):
+            x = 0, '[1] size'
+            k = 1, '[hz] growth rate'
+            D_x = k * x
+
+        return Growth
+
+    def test_create_class(self):
+        cls = self.get_cls()
+        assert set(cls.values) == {'x', 'k'}
+
+    def test_create_model(self, cls):
+        m = cls()
+        assert set(m.values) == {'x', 'k'}
+        assert m.vars == {'x': m.x}
+        assert m.computed_terms == {}
+        assert m.params == {'k': m.k}
+        assert m.k.value == 1.0
+        assert m.equations == {'x': m.x.symbol}
+
+    def test_override_initial_conditions(self, cls):
+        m = cls(x=1, k=2)
+        assert set(m.values) == {'x', 'k'}
+        assert m.vars == {'x': m.x}
+        assert m.computed_terms == {}
+        assert m.params == {'k': m.k}
+        assert m.k.value == 2
+        assert m.x.value == 1
+        assert m.equations == {'x': 2 * m.x.symbol}

@@ -100,8 +100,6 @@ class Environment(Mapping):
         if isinstance(value, tuple):
             value, spec = value
             unit, msg = parse_unit_msg(spec)
-        if isinstance(value, (Number, list, np.ndarray)):
-            value = np.asarray(value, dtype=float)
         if not isinstance(value, Value):
             value = Value(name, value, unit=unit, description=msg)
 

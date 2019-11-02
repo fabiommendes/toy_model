@@ -1,13 +1,14 @@
 from numbers import Number
 
 import numpy as np
+from sympy import Expr, S
 from typing import Mapping, Any, Dict
 
 from ..compiler import Compiler
 from .meta import Meta
 from .model_meta import ModelMeta
 from .value import Value, fix_numeric, NumericType
-
+from ..utils import substitute
 
 class Model(metaclass=ModelMeta):
     """
@@ -34,10 +35,22 @@ class Model(metaclass=ModelMeta):
         self.vars = {k: v for k, v in values.items() if k in self.equations}
 
         # We now must decide what is parameter and what is not
-        values = {k: v for k, v in self.vars.items() if k not in self.vars}
+        values = {k: v for k, v in values.items() if k not in self.vars}
         values = fix_numeric(values)
         self.params = {k: v for k, v in values.items() if v.is_numeric}
         self.computed_terms = {k: v for k, v in values.items() if k not in self.params}
+
+        # Replace values in equations
+        params = {k: v.value for k, v in self.params.items()}
+        if params:
+            eqs = {}
+            for k, eq in self.equations.items():
+                if isinstance(eq, Expr):
+                    eq = substitute(eq, params)
+                elif callable(eq):
+                    raise NotImplementedError(eq)
+                eqs[k] = eq
+            self.equations = eqs
 
         # Save all values as attributes
         self.values = {**self.vars, **self.params, **self.computed_terms}
@@ -46,8 +59,6 @@ class Model(metaclass=ModelMeta):
 
         # Obtain the derivative and compute functions
         self._compiler = Compiler(self.vars, self.computed_terms, self.equations)
-        self._diff = self._compiler.compile_diff_fn(require_computed=True)
-        self._computed_terms = self._compiler.compile_computed_terms_fn()
 
     def run(self, *args, solver='euler', **kwargs):
         """
@@ -68,8 +79,8 @@ class Model(metaclass=ModelMeta):
         x0 = self.initial_state(kwargs)
         storage_size = len(x0) + len(self.initial_computed())
 
-        compute = self._computed_terms
-        diff = self._diff
+        diff = self._compiler.compile_diff_fn(require_computed=True)
+        compute = self._compiler.compile_computed_terms_fn()
 
         times = times_from_args(*args)
         ts_data = np.ndarray((len(times), storage_size), dtype=self.dtype)
