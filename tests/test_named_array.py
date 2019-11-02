@@ -1,4 +1,4 @@
-from toy.namedarray import namedarray, iter_args
+from toy.types.namedarray import namedarray, iter_args
 
 
 class TestNamedArray:
@@ -17,3 +17,9 @@ class TestNamedArray:
         # Check write
         pt.y = 3
         assert (pt == [1, 3]).all()
+
+    def test_named_array_with_extra_dims(self):
+        Point = namedarray('Point', ['x', 'y'])
+        m = Point([[1, 2, 3], [3, 4, 5]])
+        assert (m.x == [1, 2, 3]).all()
+        assert (m.y == [3, 4, 5]).all()
