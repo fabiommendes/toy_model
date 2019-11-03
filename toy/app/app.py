@@ -6,15 +6,16 @@ class App:
     """
     Convert model into a CLI application.
     """
+
     def __init__(self, model):
         self.model = model
+        self.click = make_click_function(self)
 
     def run(self):
         """
         Run application.
         """
-        runner = make_click_function(self)
-        return runner()
+        return self.click()
 
 
 def make_click_function(app):
@@ -26,22 +27,36 @@ def make_click_function(app):
     """
     model = app.model
 
-    @click.command()
-    @click.option('--time', '-t', default='10', help='Simulation time')
-    def main(time, **kwargs):
-        print('running application')
-        args = map(parse_number, time.split(','))
-        result = model.run(*args)
+    @click.group()
+    def cli():
+        pass
 
-        plt.plot(result[0])
-        plt.plot(result[1])
-        # plt.plot(result.x_ts)
-        # plt.plot(result.y_ts)
-        # plt.plot(result.z_ts)
-
+    @cli.command()
+    @click.option('--time', '-t', default='', help='Simulation time')
+    @click.option('--legend', '-l', default=True, help='Show legend')
+    @click.option('--solver', default='rk4', help='Solver algorithm')
+    def series(time, legend, solver):
+        run = run_times(model, time, solver=solver)
+        for name in model.vars:
+            value = getattr(run, name + '_ts')
+            plt.plot(run.times, value, label=name)
+        if legend:
+            plt.legend()
         plt.show()
 
-    return main
+    @cli.command()
+    @click.argument('x', default=None)
+    @click.argument('y', default=None)
+    @click.option('--time', '-t', default='', help='Simulation time')
+    @click.option('--solver', default='rk4', help='Solver algorithm')
+    def trajectory(x, y, time, solver):
+        run = run_times(model, time,  solver=solver)
+        X = getattr(run, x + '_ts') if x else run.values[0]
+        Y = getattr(run, y + '_ts') if y else run.values[1]
+        plt.plot(X, Y)
+        plt.show()
+
+    return cli
 
 
 def parse_number(x):
@@ -52,3 +67,9 @@ def parse_number(x):
         return int(x)
     except ValueError:
         return float(x)
+
+
+def run_times(model, time, **kwargs):
+    print('Running application')
+    args = map(parse_number, time.split(','))
+    return model.run(*args, **kwargs)
