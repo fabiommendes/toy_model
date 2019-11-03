@@ -54,7 +54,7 @@ Let us start with a simple kinematic model for a particle:
         vy = 0, '[m/s] y velocity'
 
         # Constants
-        a = 2, '[m/s2] uniform acceleration'
+        a = -2, '[m/s2] uniform acceleration'
 
         # Bounds
         bounds = [y >= 0]
@@ -71,15 +71,26 @@ state of simulation or any dynamic variables. The actual simulation is executed 
 the run() method with a range of times.
 
 >>> model = Particle()
->>> #run = model.run(0, 10, vx=10, vy=20)
+>>> run = model.run(0, 1, 5, vx=1, vy=2.0)
 
-The "runner" object stores all intermediary steps of execution and some methods useful
-to inspect the simulation result
+The "run" object stores all intermediary steps of execution and some methods that are
+useful to inspect the simulation result. We can, for instance, fetch the final value for
+a variable,
 
->>> #run.x_ts  # Time series for the x variable
->>> #run.x     # Final value for the x variable
->>> #run.run(0, 10)  # Run simulation for 10 more units of time.
-<Run x=12, y=12, vx=10, vy=-10>
+>>> run.x
+1.0
+
+and its associated time series,
+
+>>> run.x_ts
+array([0.  , 0.25, 0.5 , 0.75, 1.  ])
+
+The run object can also be used to keep running the simulation, inspect some running
+parameters, saving state, and much more. We refer to the :cls:`Run` documentation for
+more details.
+
+>>> run.run(1, steps=10)
+<Run t=1.0, x=1.0, y=1.0, vx=1.0, vy=0.0>
 
 The particular details of how we go from a model subclass (e.g., Particle) to a simulation
 result involves some sophisticated processing and meta programming. The details of
@@ -141,17 +152,19 @@ must be reduced to numbers when model is initialized. They don't change.
 
 If you only need the initial values, use
 
->>> m.initial_params()
+>>> m.param_values()
 {'m': 1, 'k': 1, 'F': 1, 'omega': 0.5, 'gamma': 0.1}
 
 This distinction is important, because parameters cannot be changed once the
 model is initialized, but the initial values for vars can. That is, the run()
 method can override vars, but not params.
 
-That's ok!
+For instance, that's ok:
+
 >>> m.run(0, 10, v=2)  # doctest: +SKIP
 
-That is an error!
+That is an error:
+
 >>> m.run(0, 10, k=2)  # doctest: +SKIP
 
 We can, however, override parameters during model initialization, by creating
@@ -160,12 +173,12 @@ different instances of a model class
 >>> m1 = ForcedOscillator(k=2)
 >>> m2 = ForcedOscillator(k=1)
 
-Similarly to parameters, we have auxiliary variables that must be computed at
-every step of the simulation, usually by depending on time or the other
-dynamic variables. This is what the "force" term is in the oscillator model.
-We refer to those values as "computed terms",
+Some auxiliary variables must be computed at every step of the simulation,
+usually because they depend on time or the other dynamic variables. This is
+what the "force" term is in the oscillator model.
+We refer to those terms as "auxiliary terms" or simply as "aux",
 
->>> m.computed_terms
+>>> m.aux
 {'force': Value('force', F*sin(omega*t))}
 
 They are subject to similar restriction as parameters, in that it is not possible
@@ -175,7 +188,7 @@ values and vice-versa, the distinction between parameters and computed terms
 is only possible after model initialization.
 
 >>> m3 = ForcedOscillator(force=0)
->>> m3.computed_terms
+>>> m3.aux
 {}
 >>> m3.params  # doctest: +ELLIPSIS
 {'m': Value('m', 1), ..., 'force': Value('force', 0)}
