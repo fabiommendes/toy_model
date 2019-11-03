@@ -1,7 +1,9 @@
-import numpy as np
-from sympy import Symbol, Expr
+from numbers import Number
 
-import sidekick as sk
+import numpy as np
+from sympy import Symbol, Expr, lambdify, S
+from typing import Mapping
+
 from ..utils import is_numeric
 
 
@@ -14,23 +16,50 @@ class Compiler:
     def __init__(self, dynamic, computed, equations, dtype=np.float64):
         self.dtype = dtype
         self.vars = dynamic
-        self.computed_terms = computed
+        self.aux = computed
         self.equations = equations
 
         self._idx_vars = {k: i for i, k in enumerate(self.vars)}
-        self._idx_computed = {k: i for i, k in enumerate(self.computed_terms)}
-        self._n_vars = sum(v.size for v in self.vars.values())
-        self._n_computed = sum(v.size for v in self.computed_terms.values())
+        self._idx_aux = {k: i for i, k in enumerate(self.aux)}
+        self._var_size = sum(v.size for v in self.vars.values())
+        self._aux_size = sum(v.size for v in self.aux.values())
 
-    def initial_state(self, state):
+    def vectorize_vars(self, m: Mapping[str, Number]) -> np.ndarray:
         """
+        Vectorize dictionary mapping from var names to values.
+        """
+        return self._vectorize(m, self._idx_vars, self._var_size)
 
+    def vectorize_aux(self, m: Mapping[str, Number]) -> np.ndarray:
         """
-        x0 = np.zeros(self._n_vars, dtype=self.dtype)
-        idx = self._idx_vars
-        for k, v in state.items():
-            x0[idx[k]] = v
-        return x0
+        Vectorize dictionary mapping from aux names to values.
+        """
+        return self._vectorize(m, self._idx_aux, self._aux_size)
+
+    def _vectorize(self, data, idx, n):
+        res = np.empty(n, dtype=self.dtype)
+        for k, v in data.items():
+            res[idx[k]] = v
+        return res
+
+    def var_map(self):
+        return self._idx_vars.copy()
+
+    def aux_map(self, absolute=False):
+        if absolute:
+            return self._idx_aux.copy()
+        else:
+            s = self._var_size
+            return {k: v + s for k, v in self._idx_aux.items()}
+
+    def var_index(self, attr):
+        return self._idx_vars[attr]
+
+    def aux_index(self, attr, absolute=False):
+        if absolute:
+            return self._idx_aux[attr] + self._var_size
+        else:
+            return self._idx_aux[attr]
 
     def compile_update_diff_fn(self):
         """
@@ -46,20 +75,20 @@ class Compiler:
 
         def update_diff(diff, y, x, t):
             for i, fn in functions:
-                diff[i] = fn(y, x, t)
+                diff[i] = fn(t, y, x)
 
         return update_diff
 
-    def compile_update_computed_terms_fn(self):
+    def compile_update_aux_fn(self):
         """
         Return a function that computes the computed terms from a state array.
         """
-        idx = self._idx_computed
-        functions = tuple((idx[k], self._get_computed_fn(k)) for k in self.computed_terms)
+        idx = self._idx_aux
+        functions = tuple((idx[k], self._get_computed_fn(k)) for k in self.aux)
 
         def update_computed(y, x, t):
             for i, fn in functions:
-                y[i] = fn(y, x, t)
+                y[i] = fn(t, y, x)
 
         return update_computed
 
@@ -71,32 +100,31 @@ class Compiler:
         the value of computed values as an additional parameter.
         """
         update = self.compile_update_diff_fn()
-        empty_vars = np.zeros(self._n_vars, dtype=self.dtype).copy
+        empty_vars = np.zeros(self._var_size, dtype=self.dtype).copy
 
         if require_computed:
-            def diff(y, x, t):
+            def diff(t, y, x):
                 out = empty_vars()
                 update(out, y, x, t)
                 return out
         else:
-            update_computed = self.compile_update_computed_terms_fn()
-            empty_computed = np.zeros(self._n_computed, dtype=self.dtype).copy
+            update_computed = self.compile_update_aux_fn()
+            empty_computed = np.zeros(self._aux_size, dtype=self.dtype).copy
 
-            def diff(x, t):
+            def diff(t, x):
                 y = empty_computed()
                 update_computed(y, x, t)
-
                 out = empty_vars()
                 update(out, y, x, t)
                 return out
 
         return diff
 
-    def compile_computed_terms_fn(self):
-        update = self.compile_update_computed_terms_fn()
-        empty_computed = np.zeros(self._n_computed, dtype=self.dtype).copy
+    def compile_aux_fn(self):
+        update = self.compile_update_aux_fn()
+        empty_computed = np.zeros(self._aux_size, dtype=self.dtype).copy
 
-        def computed(x, t):
+        def computed(t, x):
             y = empty_computed()
             update(y, x, t)
             return y
@@ -107,11 +135,9 @@ class Compiler:
         return self._get_fn(name, self.equations[name])
 
     def _get_computed_fn(self, name):
-        return self._get_fn(name, self.computed_terms[name])
+        return self._get_fn(name, self.aux[name])
 
     def _get_fn(self, name, expr):
-        print('fn:', name, expr)
-
         if is_numeric(expr):
             return self._get_numeric_fn(name, expr)
         elif isinstance(expr, Symbol):
@@ -125,23 +151,36 @@ class Compiler:
 
     def _get_numeric_fn(self, name, value):
         number = float(value)
-        return lambda y, x, t: number
+        return lambda t, y, x: number
 
     def _get_symbol_fn(self, name, symb):
         if symb.name in self.vars:
             idx = self._idx_vars[symb.name]
-            return lambda y, x, t: x[idx]
-        elif symb.name in self.computed_terms:
-            idx = self._idx_computed[symb.name]
-            return lambda y, x, t: y[idx]
+            return lambda t, y, x: x[idx]
+        elif symb.name in self.aux:
+            idx = self._idx_aux[symb.name]
+            return lambda t, y, x: y[idx]
         else:
             raise ValueError(f'invalid variable for {name}: {symb.name}')
 
     def _get_symbolic_expr_fn(self, name, expr):
-        deps = expr.atoms()
-        deps = expr.dependent_variables()
-        state, computed = map(tuple, sk.separate(self.vars.__contains__, deps))
-        raise NotImplementedError(expr)
+        deps = set(map(str, filter(lambda x: isinstance(x, Symbol), expr.atoms())))
+        args = (
+            S('t'),
+            *(k for k in self.vars if k in deps),
+            *(k for k in self.aux if k in deps),
+        )
+        lambd = lambdify(args, expr)
+
+        args_var = np.array([self._idx_vars[k] for k in self.vars if k in deps], dtype=int)
+        args_aux = np.array([self._idx_aux[k] for k in self.aux if k in deps], dtype=int)
+
+        def fn(t, y, x):
+            a = y[args_aux]
+            b = x[args_var]
+            return lambd(t, *a, *b)
+
+        return fn
 
     def _get_callable_fn(self, name, expr):
         raise NotImplementedError(name, expr)

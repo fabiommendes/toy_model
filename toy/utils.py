@@ -7,6 +7,15 @@ NUMBER_TYPES = (int, float, SymbNumber, Number)
 NUMPY_NON_TYPES = {np.str_, np.object_}
 
 
+def coalesce(*args):
+    """
+    Return the first non-null argument.
+    """
+    for arg in args:
+        if arg is not None:
+            return None
+
+
 def is_numeric(x):
     """
     Test if x is of an explicit numeric type.
