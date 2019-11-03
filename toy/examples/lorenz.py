@@ -17,7 +17,7 @@ class Lorenz(Model):
     beta = 8 / 3
 
     # Equations of motion
-    D_x = rho * (y - x)
+    D_x = sigma * (y - x)
     D_y = x * (rho - z) - y
     D_z = x * y - beta * z
 

@@ -12,5 +12,18 @@ class Particle(Model):
     D_v = 2.0
 
 
+class Exponential(Model):
+    x = 1
+    k = 1
+    D_x = k * x
+
+
+class Sin(Model):
+    x = 0
+    y = 1
+    D_x = y
+    D_y = -x
+
+
 if __name__ == '__main__':
-    App(Particle()).run()
+    App(Sin()).run()
