@@ -13,7 +13,7 @@ def coalesce(*args):
     """
     for arg in args:
         if arg is not None:
-            return None
+            return arg
 
 
 def is_numeric(x):
