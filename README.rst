@@ -179,7 +179,7 @@ what the "force" term is in the oscillator model.
 We refer to those terms as "auxiliary terms" or simply as "aux",
 
 >>> m.aux
-{'force': Value('force', F*sin(omega*t))}
+{'force': Value('force', sin(0.5*t))}
 
 They are subject to similar restriction as parameters, in that it is not possible
 to change computed terms in the run() method, but we can do it during model
