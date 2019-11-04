@@ -6,9 +6,15 @@ from sympy.physics import units
 from sympy.physics.units import Quantity
 from sympy.physics.units.dimensions import dimsys_SI
 
+from sidekick import namespace
+
 DIMENSIONLESS = Quantity("dimensionless")
 DIMENSIONLESS.set_dimension(S.One)
 DIMENSIONLESS.set_scale_factor(S.One)
+SIMPY_UNITS = {k: v for k, v in vars(units).items() if not k.startswith('_')}
+UNITS = namespace(
+    **SIMPY_UNITS,
+)
 
 grammar = Lark(r"""
 ?start : expr
@@ -27,7 +33,7 @@ name   : NAME
 number : NUMBER 
      
 NUMBER : /-?\d+/ 
-NAME   : /[a-zA-Z]+/
+NAME   : /[a-zA-Z$%]+/
 
 %ignore /\s+/
 """, parser='lalr')
@@ -44,7 +50,7 @@ class UnitTransformer(InlineTransformer):
         super().__init__()
 
     def name(self, name):
-        return getattr(units, name)
+        return UNITS[str(name)]
 
     def dimensionless(self, N):
         return int(N) * DIMENSIONLESS
@@ -66,3 +72,4 @@ def parse_unit_msg(u):
 
     pre, _, msg = u.partition(']')
     return parse_unit(pre[1:]), msg.strip()
+
