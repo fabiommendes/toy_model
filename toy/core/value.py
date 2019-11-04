@@ -134,4 +134,18 @@ def fix_numeric(ns: Mapping[str, Value]) -> Dict[str, Value]:
     """
     Fix the values of all numeric variables in namespace recursively.
     """
-    return dict(ns)
+    numeric = {}
+    subs = {}
+    ns = dict(ns)
+    size = None
+
+    while len(ns) != size:
+        size = len(ns)
+        for k, v in list(ns.items()):
+            if v.is_numeric:
+                numeric[k] = ns.pop(k)
+                subs[k] = v.value
+            else:
+                ns[k] = v.replace(**subs)
+
+    return {**ns, **numeric}
