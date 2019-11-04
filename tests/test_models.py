@@ -50,9 +50,6 @@ class TestBasicModel(ModelMixin):
         times = np.linspace(0, 1, steps)
         run = m.run(times)
         res = np.exp(times)
-        print(run.values)
-        print(run.x_ts)
-        print(run.x, run.t)
         assert_almost_equal(run.x_ts, res, 3)
 
 
@@ -83,3 +80,29 @@ class TestParametricModel(ModelMixin):
         assert m.k.value == 2
         assert m.x.value == 1
         assert m.equations == {'x': 2 * m.x.symbol}
+
+
+class TestRegressions:
+    def test_transitive_dependencies(self):
+        class M(Model):
+            a = 1
+            b = a * 2
+            c = 1
+            D_c = b * c
+
+        m = M()
+        assert set(m.vars) == {'c'}
+        assert m.param_values() == {'a': 1, 'b': 2}
+        assert m.aux_values() == {}
+        m.run(0, 10, 20)
+
+    def test_do_not_allocate_useless_space_for_aux_variables(self):
+        class M(Model):
+            a = 1
+            b = 2
+            k = 1 + a + b
+            D_a = -b * a
+            D_b = -k * a
+
+        m = M()
+        m.run(0, 50)
