@@ -71,11 +71,12 @@ class Compiler:
         ``y`` is the
         """
         idx = self._idx_vars
-        functions = tuple((idx[k], self._get_derivative_fn(k)) for k in self.vars)
+        functions = tuple((idx[k], self._get_diff_fn(k)) for k in self.vars)
 
         def update_diff(diff, y, x, t):
             for i, fn in functions:
-                diff[i] = fn(t, y, x)
+                yi = fn(t, y, x)
+                diff[i] = yi
 
         return update_diff
 
@@ -84,11 +85,17 @@ class Compiler:
         Return a function that computes the computed terms from a state array.
         """
         idx = self._idx_aux
-        functions = tuple((idx[k], self._get_computed_fn(k)) for k in self.aux)
+        functions = tuple((idx[k], self._get_aux_fn(k)) for k in self.aux)
 
         def update_computed(y, x, t):
-            for i, fn in functions:
-                y[i] = fn(t, y, x)
+            try:
+                for i, fn in functions:
+                    yi = fn(t, y, x)
+                    y[i] = yi
+            except Exception as exc:
+                name = type(exc).__name__
+                msg = f'{name} error occurred when calling {fn.__name__!r}: {exc}'
+                raise ValueError(msg) from exc
 
         return update_computed
 
@@ -131,11 +138,15 @@ class Compiler:
 
         return computed
 
-    def _get_derivative_fn(self, name):
-        return self._get_fn(name, self.equations[name])
+    def _get_diff_fn(self, name):
+        fn = self._get_fn(name, self.equations[name])
+        fn.__name__ = fn.__qualname__ = f'eq/{name}'
+        return fn
 
-    def _get_computed_fn(self, name):
-        return self._get_fn(name, self.aux[name])
+    def _get_aux_fn(self, name):
+        fn = self._get_fn(name, self.aux[name].value)
+        fn.__name__ = fn.__qualname__ = f'aux/{name}'
+        return fn
 
     def _get_fn(self, name, expr):
         if is_numeric(expr):
@@ -144,10 +155,10 @@ class Compiler:
             return self._get_symbol_fn(name, expr)
         elif isinstance(expr, Expr):
             return self._get_symbolic_expr_fn(name, expr)
-        elif callable(expr.value):
+        elif callable(expr):
             return self._get_callable_fn(name, expr)
         else:
-            raise TypeError('invalid value')
+            raise TypeError(f'invalid value for {name}: {expr}')
 
     def _get_numeric_fn(self, name, value):
         number = float(value)
@@ -172,7 +183,8 @@ class Compiler:
         )
         lambd = lambdify(args, expr)
 
-        args_var = np.array([self._idx_vars[k] for k in self.vars if k in deps], dtype=int)
+        args_var = np.array([self._idx_vars[k] for k in self.vars if k in deps],
+                            dtype=int)
         args_aux = np.array([self._idx_aux[k] for k in self.aux if k in deps], dtype=int)
 
         def fn(t, y, x):
