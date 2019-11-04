@@ -76,7 +76,7 @@ class Model(metaclass=ModelMeta):
                     - 'rk4'
         """
         meta = self._meta
-        steps = coalesce(steps, meta.steps)
+        steps = coalesce(steps, meta.steps, 100)
         t0 = coalesce(t0, meta.t0)
         tf = coalesce(tf, meta.tf)
         runner = self.runner(solver, name=name)

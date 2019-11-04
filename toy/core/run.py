@@ -32,13 +32,13 @@ class Run:
 
     def __init__(self, solver, model, alloc_steps=1, name=None):
         meta = model._meta
-        n = meta.vars_size + meta.aux_size
         self.name = name
         self.model = model
         self.solver = solver
         self._idx = 1
         self._times = np.ones(alloc_steps, dtype='float64') * float('nan')
-        self._values = np.zeros((alloc_steps, n), dtype=model.dtype)
+        self._values = np.zeros((alloc_steps, meta.vars_size), dtype=model.dtype)
+        # self._aux = np.zeros((alloc_steps, meta.aux_size), dtype=model.dtype)
         self._attributes = _make_attributes(self)
         self._times[0] = self.t
         self._values[0] = self.solver.y
@@ -81,7 +81,7 @@ class Run:
 
         # Compute the time points
         meta = self.model._meta
-        steps = coalesce(steps, meta.steps)
+        steps = coalesce(steps, meta.steps, 100)
         t0 = coalesce(t0, self.t)
         tf = coalesce(tf, self.t + meta.tf - meta.t0)
 
